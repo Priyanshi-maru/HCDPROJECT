@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ICT Attendance System</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; text-align: center; padding: 20px; }
+        .cam-wrapper { position: relative; display: inline-block; border: 6px solid #2c3e50; border-radius: 12px; background: #000; overflow: hidden; }
+        
+        /* The Blue Box and Label */
+        #face-box {
+            position: absolute; border: 4px solid #007bff; display: none; pointer-events: none; z-index: 5;
+        }
+        #emotion-tag {
+            position: absolute; top: -45px; left: -4px; right: -4px;
+            background: #007bff; color: white; text-align: center; 
+            font-weight: bold; font-size: 22px; padding: 5px 0; border-radius: 4px 4px 0 0;
+        }
+
+        /* Standardized Boxes */
+        .control-item { width: 320px; height: 50px; margin: 12px auto; display: block; border-radius: 8px; font-size: 16px; border: 1px solid #ccc; box-sizing: border-box; }
+        button.control-item { background: #27ae60; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button.control-item:hover { background: #219150; }
+        
+        #admin-panel { 
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: white; padding: 30px; border-radius: 15px; box-shadow: 0 0 30px rgba(0,0,0,0.5); z-index: 100; 
+        }
+    </style>
+</head>
+<body>
+    <h2>ICT Attendance Portal</h2>
+    <div class="cam-wrapper" id="cam-area">
+        <video id="video" width="640" height="480" autoplay></video>
+        <div id="face-box"><div id="emotion-tag"></div></div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <input type="text" id="name" class="control-item" placeholder="Student Name" autocomplete="off">
+        <input type="text" id="sid" class="control-item" placeholder="Enrollment Number" autocomplete="off">
+        <button id="markBtn" class="control-item" onclick="markAttendance()">Mark Attendance</button>
+    </div>
+
+    <div id="admin-panel">
+        <h3>Admin Authorization</h3>
+        <input type="text" id="u" class="control-item" placeholder="Username" autocomplete="off">
+        <input type="password" id="p" class="control-item" placeholder="Password">
+        <button class="control-item" style="background: #c0392b;" onclick="stopSession()">Stop Session</button>
+    </div>
+
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const faceBox = document.getElementById('face-box');
+        const emotionTag = document.getElementById('emotion-tag');
+        const markBtn = document.getElementById('markBtn');
+        let stream = null;
+
+        navigator.mediaDevices.getUserMedia({ video: true }).then(s => { stream = s; video.srcObject = s; });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key.toLowerCase() === 'a') { document.getElementById('admin-panel').style.display = 'block'; }
+        });
+
+        function stopSession() {
+            if(document.getElementById('u').value === 'admin' && document.getElementById('p').value === '123') {
+                alert("Attendance session closed.");
+                if(stream) stream.getTracks().forEach(t => t.stop());
+                document.getElementById('cam-area').innerHTML = "<h1 style='color:white; padding:180px;'>SESSION CLOSED</h1>";
+                document.getElementById('admin-panel').style.display = 'none';
+                markBtn.disabled = true;
+            } else { alert("Invalid Credentials"); }
+        }
+
+        function markAttendance() {
+            const canvas = document.getElementById('canvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+                fetch('https://kemberly-nongenealogical-prosaically.ngrok-free.dev/attendance', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    name: document.getElementById('name').value, 
+                    id: document.getElementById('sid').value, 
+                    image: canvas.toDataURL('image/jpeg') 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === "success" && data.box) {
+                    const [x, y, w, h] = data.box;
+                    faceBox.style.left = x + "px"; faceBox.style.top = y + "px";
+                    faceBox.style.width = w + "px"; faceBox.style.height = h + "px";
+                    faceBox.style.display = "block";
+                    emotionTag.innerText = data.emotion;
+                    setTimeout(() => { faceBox.style.display = "none"; }, 4000);
+                }
+            }).catch(() => alert("Error: Close Excel and check app.py!"));
+        }
+    </script>
+</body>
+</html>
